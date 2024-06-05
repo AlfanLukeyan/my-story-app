@@ -18,11 +18,7 @@ import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
-import com.google.android.gms.maps.model.BitmapDescriptorFactory
-import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.LatLngBounds
-import com.google.android.gms.maps.model.MapStyleOptions
-import com.google.android.gms.maps.model.MarkerOptions
+import com.google.android.gms.maps.model.*
 
 class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
@@ -43,22 +39,15 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
             .findFragmentById(R.id.map) as SupportMapFragment
         mapFragment.getMapAsync(this)
 
-        supportActionBar?.title = getString(R.string.action_maps)
-        supportActionBar?.setDisplayHomeAsUpEnabled(true)
+        supportActionBar?.apply {
+            title = getString(R.string.action_maps)
+            setDisplayHomeAsUpEnabled(true)
+        }
+
+        observeViewModel()
     }
 
-    override fun onMapReady(googleMap: GoogleMap) {
-        mMap = googleMap
-
-        mMap.uiSettings.isZoomControlsEnabled = true
-        mMap.uiSettings.isIndoorLevelPickerEnabled = true
-        mMap.uiSettings.isCompassEnabled = true
-        mMap.uiSettings.isMapToolbarEnabled = true
-
-        getMyLocation()
-        setMapStyle()
-        addManyMarker()
-
+    private fun observeViewModel() {
         viewModel.isError.observe(this) { isError ->
             if (isError) {
                 viewModel.errorMessage.observe(this) { errorMessage ->
@@ -74,22 +63,33 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         viewModel.isLoading.observe(this) {
             showLoading(it)
         }
+    }
 
-        mMap.setOnPoiClickListener { pointOfInterest ->
-            val poiMarker = mMap.addMarker(
-                MarkerOptions()
-                    .position(pointOfInterest.latLng)
-                    .title(pointOfInterest.name)
-                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED))
-            )
-            poiMarker?.showInfoWindow()
+    override fun onMapReady(googleMap: GoogleMap) {
+        mMap = googleMap
+        configureMap()
+        getMyLocation()
+        setMapStyle()
+        addManyMarker()
+
+        // Remove the setOnPoiClickListener to prevent adding markers
+        mMap.setOnPoiClickListener(null)
+    }
+
+    private fun configureMap() {
+        mMap.uiSettings.apply {
+            isZoomControlsEnabled = true
+            isIndoorLevelPickerEnabled = true
+            isCompassEnabled = true
+            isMapToolbarEnabled = true
         }
+
+        // Disable long press gesture to prevent adding markers
+        mMap.setOnMapLongClickListener(null)
     }
 
     private val requestPermissionLauncher =
-        registerForActivityResult(
-            ActivityResultContracts.RequestPermission()
-        ) { isGranted: Boolean ->
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
             if (isGranted) {
                 getMyLocation()
             }
@@ -109,8 +109,9 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private fun setMapStyle() {
         try {
-            val success =
-                mMap.setMapStyle(MapStyleOptions.loadRawResourceStyle(this, R.raw.map_style))
+            val success = mMap.setMapStyle(
+                MapStyleOptions.loadRawResourceStyle(this, R.raw.map_style)
+            )
             if (!success) {
                 Log.e(TAG, "Style parsing failed.")
             }
@@ -149,11 +150,12 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        if (item.itemId == android.R.id.home) {
+        return if (item.itemId == android.R.id.home) {
             onBackPressed()
-            return true
+            true
+        } else {
+            super.onOptionsItemSelected(item)
         }
-        return super.onOptionsItemSelected(item)
     }
 
     companion object {
